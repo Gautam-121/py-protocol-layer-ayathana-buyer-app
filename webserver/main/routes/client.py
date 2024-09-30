@@ -37,7 +37,7 @@ class AddSelectRequest(Resource):
         if resp is None:
             entry_object_id = dump_request_payload("select", request_payload)
             resp = bpp_post_call('select', request_payload)
-            log(f"Got the select response {resp}!")
+            log(f"Got the select responses {resp}!")
             update_dumped_request_with_response(entry_object_id, resp)
             return resp
         else:
