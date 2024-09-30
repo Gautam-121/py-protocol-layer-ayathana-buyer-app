@@ -32,7 +32,7 @@ class AddSelectRequest(Resource):
 
     def post(self):
         request_payload = request.get_json()
-        log(f"Got the select request payload {request_payload}!")
+        log(f"Got the select requests payload {request_payload}!")
         resp = validate_payload_schema_based_on_version(request_payload, 'select')
         if resp is None:
             entry_object_id = dump_request_payload("select", request_payload)
