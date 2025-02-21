@@ -1,6 +1,8 @@
 
 
 import main.config
+# from main.service.search import JSONEncoder  # Add this import
+
 
 
 def create_app(config_name):
@@ -12,6 +14,7 @@ def create_app(config_name):
 
     app = Flask(__name__, static_url_path='')
     app.config.from_object(config.config_by_name[config_name])
+    # app.json_encoder = JSONEncoder  # Add this line
     app.app_context().push()
     api.init_app(app)
     init_database()

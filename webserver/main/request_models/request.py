@@ -3,11 +3,57 @@ from enum import Enum
 from typing import Optional, Union, List
 from uuid import UUID
 
-from pydantic import BaseModel, validator, ValidationError
+from pydantic import BaseModel, validator, ValidationError ,  EmailStr, Field, constr
 
 from main.request_models.schema import Context, Catalog, Error, Order, Descriptor, Issue, Provider, Location, \
     Item, AddOn, Offer, Quotation, Billing, Fulfillment, Payment, RatingMessage, Tracking, OnRatingMessage, Domain, \
-    CodeModel, Code, Action, IncrCatalog
+    CodeModel, Code, Action, IncrCatalog , CollectedBy
+
+
+# Define the structure of GST and PAN information
+class GST(BaseModel):
+    legal_entity_name: str
+    business_address: str
+    city_code: List[Code]
+    gst_no: str = Field(..., regex=r'^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$')
+
+class PAN(BaseModel):
+    name_as_per_pan: str
+    pan_no: str = Field(..., regex=r'^[A-Z]{5}[0-9]{4}[A-Z]{1}$')
+    date_of_incorporation: str
+
+class BankDetails(BaseModel):
+    account_no: str
+    ifsc_code: str = Field(..., regex=r'^[A-Z]{4}0[A-Z0-9]{6}$')
+    beneficiary_name: str
+    bank_name: str
+    branch_name: str
+
+# Define the main entity structure
+class Entity(BaseModel):
+    gst: GST
+    pan: PAN
+    name_of_authorised_signatory: str
+    address_of_authorised_signatory: str
+    email_id: EmailStr
+    mobile_no: str = Field(..., regex=r'^\d{10}$')
+    country: CodeModel
+    bank_details: BankDetails
+
+# Define the Info structure
+class Info(BaseModel):
+    type: CollectedBy
+    entity: Entity
+
+
+class OnInfoMessage(BaseModel):
+    info: Info
+
+# Define the OnInfo structure
+class OnInfoRequest(BaseModel):
+    context: Context
+    message: OnInfoMessage
+    error: Optional[Error]
 
 
 class Status(Enum):
@@ -134,6 +180,22 @@ class OnIssueMessage(BaseModel):
         if v.id is None:
             raise ValidationError("Issue id is missing!")
         return v
+    
+
+class InfoMessage(BaseModel):
+    intent: dict
+
+    @validator('intent')
+    def validate_intent(cls, value):
+        if not isinstance(value, dict):
+            raise ValueError("Intent must be a dictionary.")
+        
+        # Check if 'descriptor' and 'code' keys exist and 'code' is 'INFO'
+        descriptor = value.get('descriptor', {})
+        if 'code' not in descriptor or descriptor['code'] != 'INFO':
+            raise ValueError("Intent descriptor code must be 'INFO'.")
+
+        return value
 
 
 class OnIssueStatusMessage(BaseModel):
@@ -296,6 +358,11 @@ class OnIssueStatusRequest(BaseModel):
     message: dict
     error: Optional[Error]
 
+class InfoRequest(BaseModel):
+    context: Context
+    message: InfoMessage
+    error: Optional[Error]
+
 
 request_type_to_class_mapping = {
     "search": SearchRequest,
@@ -323,4 +390,6 @@ request_type_to_class_mapping = {
     "on_support": OnSupportRequest,
     "on_issue": OnIssueRequest,
     "on_issue_status": OnIssueStatusRequest,
+    "info":InfoRequest,
+    "on_info":OnInfoRequest
 }

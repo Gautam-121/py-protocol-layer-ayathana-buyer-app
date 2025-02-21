@@ -14,22 +14,23 @@ from main.utils.schema_utils import get_json_schema_for_given_path, transform_js
 
 
 def validate_payload_schema_based_on_version(request_payload, request_type):
-
     # Issue action's core version should be 1.0.0
     if request_payload[constant.CONTEXT]["core_version"] == "1.0.0":
         if "issue" in request_type:
             return validate_payload_schema_using_pydantic_classes(request_payload, request_type)
-        return get_ack_response(context=request_payload["context"], ack=False,
-                                error={"type": BaseError.JSON_SCHEMA_ERROR.value, "code": "20000",
-                                       "message": "Buyer Issue action version should be 1.0.0 !"}), 200
-
+        return get_ack_response(
+            context=request_payload["context"], ack=False,
+            error={"type": BaseError.JSON_SCHEMA_ERROR.value, "code": "20000",
+                   "message": "Buyer Issue action version should be 1.0.0 !"}), 200
+    
     # Rest of the action methods should have 1.2.0
     elif request_payload[constant.CONTEXT]["core_version"] == "1.2.0":
         return validate_payload_schema_using_pydantic_classes(request_payload, request_type)
 
-    return get_ack_response(context=request_payload["context"], ack=False,
-                            error={"type": BaseError.JSON_SCHEMA_ERROR.value, "code": "20000",
-                                   "message": "Version should be 1.2.0 !"}), 200
+    return get_ack_response(
+        context=request_payload["context"], ack=False,
+        error={"type": BaseError.JSON_SCHEMA_ERROR.value, "code": "20000",
+               "message": "Version should be 1.2.0 !"}), 200
 
 
 def validate_payload_schema_using_pydantic_classes(request_payload, request_type):
@@ -37,9 +38,13 @@ def validate_payload_schema_using_pydantic_classes(request_payload, request_type
         request_type_to_class_mapping[request_type](**request_payload)
         return None
     except pydantic.ValidationError as e:
+        # log(f"Validation error: {e}!")
         error_message = str(e)
-        context = json.loads(request.data)[constant.CONTEXT]
-        log(e)
-        return get_ack_response(context=context, ack=False,
-                                error={"type": BaseError.JSON_SCHEMA_ERROR.value, "code": "20000",
-                                       "message": error_message}), 200
+        context = request_payload.get("context", {})
+        # log(f"Validation error context: {context}")
+        return get_ack_response(
+            context=context, ack=False,
+            error={"type": BaseError.JSON_SCHEMA_ERROR.value, "code": "20000",
+                   "message": error_message}), 200
+    
+

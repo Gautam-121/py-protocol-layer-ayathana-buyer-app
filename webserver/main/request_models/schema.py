@@ -84,6 +84,8 @@ class Action(Enum):
     rating = 'rating'
     support = 'support'
     issue = 'issue'
+    info = "info"
+    on_info = "on_info"
     issue_status = 'issue_status'
     on_search = 'on_search'
     on_select = 'on_select'

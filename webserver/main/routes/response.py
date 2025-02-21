@@ -2,6 +2,7 @@ from flask import request
 from flask_restx import Namespace, Resource, reqparse
 
 from main import constant
+from main.logger.custom_logging import log
 from main.service.common import get_bpp_response_for_message_id
 from main.service.search import get_item_catalogues, get_item_details, get_item_attributes, get_item_attribute_values, \
     get_custom_menus, get_providers, get_locations, get_custom_menu_details, get_provider_details, get_location_details, \
@@ -73,6 +74,10 @@ class GetResponseForMessageId(Resource):
         return parser.parse_args()
 
     def get(self):
+
+        query_params = request.args.to_dict()  # Convert query parameters to a dictionary
+        print("Received query parameters:", query_params)  # Print the parameters
+        
         args = self.create_parser_with_args()
         return get_bpp_response_for_message_id(**args)
 

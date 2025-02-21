@@ -5,6 +5,9 @@ from json import JSONDecodeError
 from typing import List, Tuple
 import re
 
+from bson import json_util
+
+
 import pymongo
 from funcy import project
 
@@ -24,6 +27,11 @@ from main.utils.math_utils import create_simple_circle_polygon
 from main.utils.parallel_processing_utils import io_bound_parallel_computation
 from main.utils.webhook_utils import post_on_bg_or_bpp, MeasureTime
 
+class JSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 def check_if_entity_present_for_given_id(collection_name, entity_id):
     collection = get_mongo_collection(collection_name)
@@ -1113,9 +1121,31 @@ def get_last_request_dump(request_type, transaction_id):
     query_object = {"action": request_type, "request.context.transaction_id": transaction_id}
     catalog = mongo.collection_find_one_with_sort(search_collection, query_object, "created_at")
     if catalog:
-        catalog.pop("created_at")
-        catalog.pop("updated_at")
-        return catalog
+        # catalog.pop("created_at")
+        # catalog.pop("updated_at")
+        return  json.loads(bson_dumps(catalog))
+
+    else:
+        return {"error": "No request found for given type and transaction_id!"}, 400
+    
+def get_last_request_dump(request_type, transaction_id):
+    search_collection = get_mongo_collection('request_dump')
+    query_object = {"action": request_type, "request.context.transaction_id": transaction_id}
+    catalog = mongo.collection_find_one_with_sort(search_collection, query_object, "created_at")
+    if catalog:
+         catalog.pop("created_at")
+         catalog.pop("updated_at")
+         # Check if 'request' is a dictionary and remove 'created_at' within it
+         request_data = catalog.get("request", {})
+         if isinstance(request_data, dict):
+            request_data.pop("created_at", None)
+
+        # Convert the entire catalog to a JSON-compatible format
+         catalog_json = json_util.dumps(catalog)
+         log(f"request dump type:{request_type}: {catalog_json}")
+
+        # return json_util.loads(json_util.dumps(catalog_json))
+         return json_util.loads(catalog_json)
     else:
         return {"error": "No request found for given type and transaction_id!"}, 400
 

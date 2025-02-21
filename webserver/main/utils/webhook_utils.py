@@ -52,6 +52,7 @@ def MeasureTime(f):
 
 @retry(tries=3, delay=1)
 def requests_post_with_retries(url, payload, headers=None):
+    log(f"Got Request for Url {url}")
     response = requests.post(url, json=payload, headers=headers, timeout=3)
     status_code = response.status_code
     if status_code != 200:
@@ -71,8 +72,14 @@ def post_count_response_to_client(route, schema_version, payload):
     version = "v1" if schema_version != "1.2.0" else "v2"
 
     if "issue" in route:
+
+        # Change the base URL if it contains the issue
+        client_webhook_endpoint = client_webhook_endpoint.replace("http://biap-client-node-js:3000", "http://biap-igm-node-js:8989")
+
         client_webhook_endpoint = client_webhook_endpoint.replace(
             "clientApi", "issueApi")
+        
+    
     try:
         status_code = requests_post_with_retries(
             f"{client_webhook_endpoint}/{version}/{route}", payload=payload)
@@ -91,9 +98,14 @@ def post_on_bg_or_bpp(url, payload, headers={}):
     log(f"Making POST call for {payload['context']['message_id']} on {url}")
     headers.update({'Content-Type': 'application/json'})
     raw_data = json.dumps(payload, separators=(',', ':'))
+    log(f"Request post: raw_data {raw_data}")
     response_text, status_code = requests_post(url, raw_data, headers=headers)
     log(f"Request Status: {status_code}, {response_text}")
-    return json.loads(response_text), status_code
+    try:
+        return json.loads(response_text), status_code
+    except json.JSONDecodeError:
+        log(f"Failed to decode JSON response: {response_text}")
+        return {"error": "Invalid JSON response"}, status_code
 
 
 @cache_success(cache)

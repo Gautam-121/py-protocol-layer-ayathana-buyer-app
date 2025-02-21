@@ -1,6 +1,7 @@
 from flask import request
 from flask_restx import Namespace, Resource
 
+import requests
 from main import constant
 from main.business_rule_validation import validate_business_rules
 from main.config import get_config_by_name
@@ -14,6 +15,8 @@ from main.service.utils import validate_auth_header, dump_validation_failure_req
 from main.utils.decorators import MeasureTime
 from main.utils.json_utils import clean_nones
 from main.utils.validation import validate_payload_schema_based_on_version
+from main.service.common import bpp_post_call, dump_request_payload, update_dumped_request_with_response
+from main.utils.catalog_full_catalog_validator import CatalogValidator
 
 ondc_network_namespace = Namespace('ondc_network', description='ONDC Network Namespace')
 
@@ -25,16 +28,20 @@ class GatewayOnSearch(Resource):
     @validate_auth_header
     def post(self):
         request_payload = request.get_json()
+
+        log(f"Got the on_search request payload {request_payload}!")
         # validate schema based on context version
         request_type = request.headers.get("X-ONDC-Search-Response", "full")
         if request_type == SearchType.FULL.value:
             resp = validate_payload_schema_based_on_version(request_payload, 'full_on_search')
             resp = validate_business_rules(request_payload, 'full_on_search') if resp is None else resp
+            validator = CatalogValidator()
+            catalog_resp =  validator.validate_catalog(request_payload)
         else:
             resp = validate_payload_schema_based_on_version(request_payload, 'incr_on_search')
             # resp = validate_business_rules(request_payload, 'incr_on_search') if resp is None else resp
 
-        if resp is None:
+        if resp is None and len(catalog_resp) == 0:
             if get_config_by_name('QUEUE_ENABLE') or get_config_by_name('ELASTIC_SEARCH_QUEUE_ENABLE'):
                 doc_id = dump_on_search_payload(request_payload)
                 message = {
@@ -49,12 +56,37 @@ class GatewayOnSearch(Resource):
                 if request_type == SearchType.FULL.value:
                     return add_search_catalogues(request_payload)
                 elif request_type == SearchType.INC.value:
-                    return add_incremental_search_catalogues(request_payload)
+                    return add_incremental_search_catalogues(request_payload , )
         else:
-            dump_validation_failure_request(request_payload, resp[0]["error"]["message"])
-            return resp
+            context = request_payload.get("context", {})
+            responsePayload = {
+                "context": context,
+                "errors": [] if len(catalog_resp) == 0 else catalog_resp
+            }
 
+            if len(catalog_resp) != 0:
+                entry_object_id = dump_request_payload("catalog_rejection", responsePayload)
+                response = bpp_post_call('catalog_rejection', responsePayload)
+                log(f"search belong to error {request_payload} Got the catalog_rejection request {responsePayload} responses {response}!")
+                update_dumped_request_with_response(entry_object_id, response)
 
+            log(f"on_search error response: {resp}")
+
+            if resp:
+                # Ensure resp is valid and contains expected keys
+                dump_validation_failure_request(request_payload, resp[0]["error"]["message"])
+                return resp
+            else:
+                # Handle the case when resp is None or empty
+                error_message = catalog_resp[0] if len(catalog_resp) > 0 else "Unknown error"
+                return {
+                    "context": context,
+                    "message": {
+                        "status": "NACK"
+                    },
+                    "error": error_message
+                }  
+        
 @ondc_network_namespace.route("/v1/on_select")
 class AddSelectResponse(Resource):
 
@@ -250,3 +282,20 @@ class AddUpdateResponse(Resource):
         update_dumped_request_with_response(entry_object_id, resp)
         log(f"Got the on_update response {resp}!")
         return resp
+
+@ondc_network_namespace.route("/v1/on_info")
+class AddUpdateResponse(Resource):
+
+    @validate_auth_header
+    def post(self):
+        request_payload = request.get_json()
+        log(f"Got the on_info request payload from seller side on our info request {request_payload} \n headers: {dict(request.headers)}!")
+        resp = validate_payload_schema_based_on_version(request_payload, 'on_info')
+        entry_object_id = dump_request_payload("on_info", request_payload)
+        # if resp is None:
+        resp = add_bpp_response(request_payload, request_type="on_info")
+        update_dumped_request_with_response(entry_object_id, resp)
+        log(f"Got the on_info response payload from seller side on our info request {resp}!")
+        return resp
+    
+

@@ -21,6 +21,7 @@ def add_bpp_response(bpp_response, request_type):
         f"for {bpp_response['context']['bpp_id']}")
     collection_name = get_mongo_collection(request_type)
     bpp_response["created_at"] = datetime.utcnow()
+    log(f"collection name {collection_name}")
     is_successful = mongo.collection_insert_one(collection_name, bpp_response)
     if is_successful:
         message_id = bpp_response[constant.CONTEXT]["message_id"]
